@@ -4,13 +4,13 @@ import { dataLibrary } from './botlib';
 /** @param {import("../index").NS } ns */
 export async function main(ns) {
   const { args } = ns;
-  const { getNetworkData, logData } = dataLibrary(ns);
+  const { getWorldData, logData } = dataLibrary(ns);
   const runonce = args[0] === 'once';
   const config = {
     sleeptime: 1000 * 90
   }
   while (true) {
-    const { servers = [] } = await getNetworkData();
+    const { servers } = await getWorldData();
     const serverList = Object.values(servers).filter(server => !server.hasAdminRights);
     logData({ event: 'rootBotPass', candidates: serverList.length })
     serverList.forEach(server => {

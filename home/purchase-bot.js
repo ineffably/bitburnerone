@@ -4,14 +4,15 @@ import { dataLibrary } from './botlib';
 export async function main(ns) {
 	ns.disableLog('ALL');
 	const { args } = ns;
-	const { getSettings, getPlayerData, logData  } = dataLibrary(ns);
+	const { getSettings, getWorldData, logData  } = dataLibrary(ns);
 	const reserve = 1000000;
 	const runonce = args[0] === 'once';
 	const sleepTime = 1000 * 60;
 	const { lowestRam } = await getSettings() || 16;
 	while(true) {
 		const ownedServers = ns.getPurchasedServers();
-		const { money } = await getPlayerData();
+		const { player } = await getWorldData();
+		const { money } = player;
 		const budget = (money - reserve) / 2;
 		const ramList = [];
 		for(let rc = 3; rc <= 20; rc++) {

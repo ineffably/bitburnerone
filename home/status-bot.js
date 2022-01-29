@@ -5,22 +5,25 @@ import { dataLibrary } from './botlib';
 export async function main(ns) {
 	ns.disableLog('ALL');
 	const { args } = ns;
-	const { getNetworkData, JSONSafeParse } = dataLibrary(ns);
-	const { adjustPane, out, reset, getGraphEl, clearConsole } = statusPane(ns);
+	const { getWorldData, JSONSafeParse } = dataLibrary(ns);
+	const { adjustPane, out, off, reset, getGraphEl, clearConsole } = statusPane(ns);
 
 	if (args[0] === 'reset') {
 		reset();
 		return;
 	}
 
-	ns.atExit = () => {
-		ns.tprint('exit reset');
-		const current = document.getElementById('paneContainer');
-		current['remove']();
+	if (args[0] === 'off') {
+		off();
+		return;
 	}
+
+	ns.atExit = () => {
+		off();
+	}
+	
 	reset();
 	const stateTracker = {}
-
 	const graphElement = getGraphEl();
 	let serverTable = document.getElementById('serverTable');
 	if (!serverTable) {
@@ -38,7 +41,7 @@ export async function main(ns) {
 		'purchase-bot.js',
 	]
 	while (true) {
-		const { servers } = await getNetworkData();
+		const { servers } = await getWorldData();
 		const serverList = Object.values(servers);
 		const outQueue = [];
 		const queueEntry = ({ scriptname, hostname }) => {

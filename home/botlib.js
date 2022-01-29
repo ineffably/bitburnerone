@@ -52,7 +52,7 @@ export const maxThreads = (scriptRam = 1, max, used, buffer = 0) => {
 export const localState = {
 	settings: {
 		loglevl: 1,
-		showDataLogs: true
+		showDataLogs: false
 	}
 }
 
@@ -111,11 +111,10 @@ export const dataLibrary = ns => {
 		const { script, host } = config.data[dataType];
 		const logData = getDataLog(script, host);
 		if (logData) {
-			return JSONSafeParse(logData, 'logData ' + dataType);
+			return JSONSafeParse(logData);
 		}
 		try {
-			const cacheFile = await ns.read(`_${dataType}.json`);
-			return JSONSafeParse(cacheFile, 'cacheFile');
+			return JSONSafeParse(await ns.read(`_${dataType}.json`));
 		}
 		catch (e) {
 			log(`cachefileFailed: ${dataType}`, LOGTYPE.wtf);
@@ -123,11 +122,6 @@ export const dataLibrary = ns => {
 		return {}
 	}
 
-	const getNetworkData = async () => { 
-		const { server, network } = await getDataFor('world');
-		return { server, network };
-	};
-	const getPlayerData = async () => await getDataFor('world').player
 	const getWorldData = async () => await getDataFor('world');
 	const getSettingsData = async () => await getDataFor('settings');
 	const getStockData = async () => await getDataFor('stock');
@@ -186,8 +180,6 @@ export const dataLibrary = ns => {
 		fcoin,
 		fnum,
 		fpercent,
-		getNetworkData,
-		getPlayerData,
 		getSettingsData,
 		getStockData,
 		getDataFor,

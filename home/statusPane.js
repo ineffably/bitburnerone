@@ -36,14 +36,14 @@ const colors = {
 const defaultTemplate = (eventData = {}) => {
 	if (!eventData) return '';
 	const { datetime, event, hostname } = eventData;
-	const { day, hours, min, ms, seconds} = dateValues(datetime);
+	const { hours, min, ms, seconds} = dateValues(datetime);
 	const common = ['hostname', 'event', 'datetime'];
 	const props = Object.keys(eventData).filter(field => !common.includes(field))
 	const eventProps = props.reduce((origin, field) => {
 		origin += ` ${field}:${eventData[field]} `;
 		return origin;
 	}, '')
-	return `[${hours}.${min}.${seconds}.${ms}] <b>${event}</b>: ${hostname} ${eventProps}`
+	return `[${hours}.${min}.${seconds}.${ms}] <b>${event}</b>: ${hostname || ''} ${eventProps}`
 }
 
 const _eventColorMap = {
@@ -157,6 +157,13 @@ export const statusPane = (ns) => {
 		getConsoleEl().innerHTML = '';
 	}
 
+	const off = () => {
+		const paneContainer = document.getElementById('paneContainer');
+		if(paneContainer){
+			paneContainer.remove();
+		}
+	}
+
 	const reset = () => {
 		const paneContainer = document.getElementById('paneContainer');
 		if(paneContainer){
@@ -167,6 +174,7 @@ export const statusPane = (ns) => {
 
 	return ({
 		out,
+		off,
 		clear,
 		clearConsole,
 		reset,
@@ -188,25 +196,6 @@ const cardClasses = {
 }
 
 export const makeEl = () => {};
-
-/*
-"cpuCores",
-            "ip",
-            "isConnectedTo",
-            "maxRam",
-            "organizationName",
-            "ramUsed",
-            "network",
-            "moneyGap",
-            "shouldGrow",
-            "shouldWeaken",
-            "peekMoney",
-            "hackChance",
-            "hackThreads",
-            "weakenTime",
-            "growTime",
-            "hackTime"
-*/
 
 const portList = {
 	ftpPortOpen: 21,
@@ -434,13 +423,13 @@ function makePane() {
 			graphsButton.style.color = 'white';
 		}
 	});
-	const expandButton = el('button', {
-		innerHTML: '^^^^^^',
-		onClick: ev => {
-			const el = document.getElementById('paneContainer');
+	// const expandButton = el('button', {
+	// 	innerHTML: '^^^^^^',
+	// 	onClick: ev => {
+	// 		const el = document.getElementById('paneContainer');
 			
-		}
-	})
+	// 	}
+	// })
 	tabs.appendChild(consoleButton);
 	tabs.appendChild(graphsButton);
 	container.appendChild(tabs);
