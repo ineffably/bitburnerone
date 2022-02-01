@@ -36,6 +36,36 @@ const config = {
 	}
 }
 
+export const quickTable = (objRecords = [], showFields = [], colwidth = 11, custom) => {
+	if(objRecords.length <= 0) return ['No Records Found'];
+  const render = custom || ((val) => val);
+  const fields = Object.keys(objRecords[0]).filter(f => showFields.includes(f));
+  const sep = fields.reduce((o, e) => { o[e] = '-------------'; return o; }, {});
+  const header = fields.reduce((o, e) => { o[e] = e; return o; }, {});
+  const records = [header, sep]
+    .concat(objRecords)
+    .map((obj) => fields.map((field) => `${obj[field]}`));
+  return records.map((row) =>
+    row.map((cellValue, i) =>
+      padRight(render(cellValue, Object.keys(header)[i]).substring(0, colwidth), colwidth, ' ')
+    ).join('| ')
+  );
+}
+
+export const padRight = (value, len, padWith) => {
+  let result = value;
+  while (result.length < len) {
+    result += padWith;
+  }
+  return result;
+}
+
+export const sortByField = (objArray, field, treatment = n => n) => {
+  return objArray.sort((a, b) =>
+    (treatment(a[field]) < treatment(b[field])) ? -1 : (treatment(a[field]) > treatment(b[field])) ? 1 : 0
+  );
+}
+
 export const getConfig = () => config;
 
 export const getRandomInt = (max) => Math.floor(Math.random() * max)
@@ -49,10 +79,22 @@ export const maxThreads = (scriptRam = 1, max, used, buffer = 0) => {
 	return Math.max(1, Math.floor(free / scriptRam));
 }
 
+export const instancesWithMaxThreads = (scriptRam = 1, max, used, buffer, maxThreads = 10) => {
+	const free = max - used - buffer;
+	const ramPerScript = scriptRam * maxThreads;
+	const instances = Math.max(1, Math.floor(free / ramPerScript));
+	const ramLeft = free - (ramPerScript * instances)
+	// free - threads * scriptRam
+	return { 
+		instances, 
+		ramLeft
+	};
+}
+
 export const localState = {
 	settings: {
 		loglevl: 1,
-		showDataLogs: false
+		showDataLogs: true
 	}
 }
 
@@ -66,7 +108,7 @@ export const formats = fieldType => {
 	return formattings[fieldType] || num;
 }
 
-const JSONSafeParse = (jsonString) => {
+export const JSONSafeParse = (jsonString) => {
 	let results = null;
 	if (typeof jsonString !== 'string') return {
 		error: 'SafeParse expects a string'
@@ -74,24 +116,13 @@ const JSONSafeParse = (jsonString) => {
 	try {
 		results = JSON.parse(jsonString);
 	} catch (error) {
-		results = { jsonParseError: true, error: error };
+		results = { jsonParseError: true, error: JSON.stringify(error) };
 	}
 	return results;
 }
 
 /** @param {import("../index").NS } ns */
 export const dataLibrary = ns => {
-
-	const getSettings = async (field) => {
-		const settings = await ns.read('_settings.json');
-		const json = JSONSafeParse(settings);
-		localState.settings = json;
-		return field ? json[field] : json;
-	}
-
-	const updateSettings = (settings = {}) => {
-		localState.settings = settings;
-	}
 
 	const getDataLog = (botname, host) => {
 		const data = ns.getScriptLogs(botname, host);
@@ -123,14 +154,16 @@ export const dataLibrary = ns => {
 	}
 
 	const getWorldData = async () => await getDataFor('world');
-	const getSettingsData = async () => await getDataFor('settings');
 	const getStockData = async () => await getDataFor('stock');
+	const getSettingsData = async () => await getDataFor('settings');
 
 	const logData = (data = {}) => {
 		if (typeof data === 'object') {
 			data.datetime = Date.now();
 			ns.print(JSON.stringify(data));
 			if(localState.settings.showDataLogs){
+				const noShow = ['hackAttempt','weakAttempt','growAttempt', 'grow', 'weaken']
+				if(data.event && noShow.includes(data.event)){return}
 				log(Object.keys(data).map(key => `${key}: ${data[key]} `).join('|'), LOGTYPE.info);
 			}
 		}
@@ -180,13 +213,11 @@ export const dataLibrary = ns => {
 		fcoin,
 		fnum,
 		fpercent,
-		getSettingsData,
 		getStockData,
+		getSettingsData,
 		getDataFor,
 		getDataLog,
 		JSONSafeParse,
-		getSettings,
-		updateSettings,
 		getWorldData,
 		LOGTYPE
 	}

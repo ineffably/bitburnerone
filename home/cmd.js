@@ -1,4 +1,4 @@
-import { dataLibrary } from './botlib';
+import { dataLibrary, quickTable, sortByField, instancesWithMaxThreads } from './botlib';
 
 // statusPane
 
@@ -6,8 +6,18 @@ import { dataLibrary } from './botlib';
 /** @param {import("../index").NS } ns */
 export async function main(ns) {
 	const { getWorldData } = dataLibrary(ns);
-	const worldData = await getWorldData();
-	ns.tprint(Object.keys(worldData));
+	const { servers } = await getWorldData()
+	
+	const chosenServers = Object.values(servers).filter(server => server.hostname.startsWith('hamster'));
+
+	chosenServers.forEach(server => {
+		const { hostname, maxRam, ramUsed } = server;
+		const ti = instancesWithMaxThreads(2.3, maxRam, ramUsed, 0, 10);
+		ns.tprint({hostname, maxRam, ti})
+	})
+	
+
+
 	// const { clear, out, reset } = statusPane(ns);
 	// if(command === 'clear'){
 	// 	return clear();

@@ -4,11 +4,11 @@ import { dataLibrary } from './botlib';
 export async function main(ns) {
 	ns.disableLog('ALL');
 	const { args } = ns;
-	const { getSettings, getWorldData, logData  } = dataLibrary(ns);
+	const { getWorldData, logData  } = dataLibrary(ns);
 	const reserve = 1000000;
 	const runonce = args[0] === 'once';
 	const sleepTime = 1000 * 60;
-	const { lowestRam } = await getSettings() || 16;
+	const { lowestRam } = {lowestRam: 128 };
 	while(true) {
 		const ownedServers = ns.getPurchasedServers();
 		const { player } = await getWorldData();

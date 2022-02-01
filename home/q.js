@@ -1,4 +1,4 @@
-import { dataLibrary } from './botlib';
+import { dataLibrary, quickTable, sortByField, instancesWithMaxThreads } from './botlib';
 
 // q servers [field][op][criteria] fieldnames,,
 // q servers fields              // all field names
@@ -15,7 +15,7 @@ import { dataLibrary } from './botlib';
 // q targets hostname
 // q targets hostname field
 
-const dbnames = ['servers', 'player', 'settings'];
+const dbnames = ['servers', 'player', 'settings', 'targets'];
 const usage = [
   'q servers [field][op][criteria] fieldnames,',
   'q servers "showfields"',
@@ -58,13 +58,31 @@ export async function main(ns) {
     return ns.tprint('\n' + usage.join('\n'));
   }
   if (!dbnames.includes(db)) {
-    return ns.tprint(`${db} data not found`);
+    return ns.tprint(`there is no "${db}" database`);
   }
 
   const allData = await getWorldData();
-  const { player, servers } = allData;
+  const { player, servers, targets, settings } = allData;
+  const { balance } = settings;
+  const { hacking, money } = player;
   if (isQuery) {
     return queryDb(ns, Object.values(allData[db]), filter1, filter2);
+  }
+
+  if(db === 'targets') {
+    const onlyShow = ['hostname', 'serverGrowth', 'moneyAvailable', 'moneyMax', 'hackDifficulty', 'hackChance', 'percentLeft'];
+    const growfields = Object.keys(targets.grow[0]).filter(field => onlyShow.includes(field));
+    const weakenFields = Object.keys(targets.weaken[0]).filter(field => onlyShow.includes(field));
+    const hackFields = Object.keys(targets.hack[0]).filter(field => onlyShow.includes(field));
+    ns.tprint('\nGrow:\n' + quickTable(targets.grow, growfields).join('\n'));
+    ns.tprint('\nWeaken:\n' + quickTable(targets.weaken, weakenFields).join('\n'));
+    ns.tprint('\nHack:\n' + quickTable(targets.hack, hackFields).join('\n'));
+    ns.tprint(balance)
+    return;
+  }
+
+  if (db === 'servers') {
+    return ns.tprint('\n' + quickTable(Object.values(servers), 'hostname').join('\n'));
   }
 
   if (filter1) {
@@ -89,9 +107,6 @@ export async function main(ns) {
     return ns.tprint(stringify(player));
   }
 
-  if (db === 'servers') {
-    return ns.tprint('\n' + quickTable(Object.values(servers), 'hostname').join('\n'));
-  }
 }
 
 function queryDb(ns, dataList, filter1) {
@@ -125,29 +140,9 @@ function queryDb(ns, dataList, filter1) {
   };
   const results = getResults();
 
-  ns.tprint(stringify(results));
+  return results;
 }
 
-
-function padRight(value, len, padWith){
-    let result = value;
-    while(result.length < len){
-        result += padWith
-    }
-    return result;
-}
-
-function quickTable(objRecords = [], headerField = ''){
-    const perRow = 11;
-    const colwidth = 11;
-    const fields = Object.keys(objRecords[0]);
-    const rows = fields.map(field => {
-        const records = objRecords.slice(0,perRow).map(obj => `${obj[field]}`);
-        const row = [field].concat(records);
-        return row;
-    });
-    return rows.map(row => row.map(cellValue => padRight((cellValue+'').substring(0, colwidth), colwidth, ' ')).join('|'))
-}
 
 function getFields(dbname) {
   const fieldData = {

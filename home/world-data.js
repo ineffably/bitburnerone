@@ -1,3 +1,5 @@
+import { sortByField, dataLibrary } from './botlib';
+
 const state = {
   money: 0,
   lastWrite: 0,
@@ -43,9 +45,10 @@ const getNetworkServers = (ns, { money, hacking }) => {
     };
 
     // addons
-    server.percentLeft = server.moneyAvailable / server.moneyMax;
+    server.percentLeft = Math.max(server.moneyAvailable / server.moneyMax, 0.000001);
     server.action = getHackAction(server, { money, hacking });
-    
+    server.files = server.hasAdminRights && ns.ls(hostname);
+		server.ramFree = server.maxRam - server.ramUsed;
     servers[hostname] = server;
     
     return network.reduce((origin, hostname) => {
@@ -53,11 +56,31 @@ const getNetworkServers = (ns, { money, hacking }) => {
       return origin;
     }, {});
   };
+  
   return {
     network: getNetwork(),
     servers,
   };
 };
+
+
+const growTargets = (serverList = [], takeTop = 5) => {
+  const growFilter = ((server) => true);
+  const list = sortByField(sortByField(serverList.filter(growFilter), 'serverGrowth').reverse(), 'percentLeft');
+  return (takeTop ? list.slice(0, 20) : list);
+}
+
+const weakenTargets = (serverList = [], takeTop = 5) => {
+  const list = sortByField(serverList, 'hackDifficulty').reverse();
+  return (takeTop ? list.slice(0, takeTop) : list);  
+}
+
+const hackTargets = (serverList = [], hacking, takeTop = 5) => {
+  const hackServers = serverList.filter(({ requiredHackingSkill, hackDifficulty }) => 
+    (requiredHackingSkill < hacking && hackDifficulty < 60));
+  const list = sortByField(hackServers, 'percentLeft');
+  return (takeTop ? list.slice(0, takeTop) : list);
+}
 
 /** @param {import("../index").NS } ns */
 const getPlayerData = (ns) => {
@@ -74,14 +97,29 @@ const getPlayerData = (ns) => {
 /** @param {import("../index").NS } ns */
 export async function main(ns) {
   ns.disableLog('ALL');
+  const { getSettingsData } = dataLibrary(ns);
   const sleepSeconds = 0.5;
   while (true) {
+    const settings = await getSettingsData();
     const player = getPlayerData(ns);
     const { servers, network } = getNetworkServers(ns, player);
+    const serverList = Object.values(servers);
+    const hackableServers = serverList.filter(server => !server.purchasedByPlayer && server.moneyMax > 0) 
+    const growList = growTargets(hackableServers);
+    const weakenList = weakenTargets(hackableServers);
+    const hackList = hackTargets(hackableServers, player.hacking);
+
+    // const hackTargets = getHackTargets(ns, servers);
     const worldState = {
       servers,
       player,
       network,
+      targets: {
+        grow: growList,
+        weaken: weakenList,
+        hack: hackList
+      },
+      settings
     };
 
     state.last = worldState;
@@ -96,6 +134,17 @@ export async function main(ns) {
     await ns.sleep(1000 * sleepSeconds);
   }
 }
+
+// function getHackTargets({ servers, money, hacking}){
+//   const growTable = [];
+//   const weakenTable = [];
+//   const hackTable = [];
+
+//   const serverList = Object.values(servers);
+  
+
+
+// }
 
 function getHackAction(server = {}, { money, hacking }) {
   const {
