@@ -162,7 +162,7 @@ export const dataLibrary = ns => {
 			data.datetime = Date.now();
 			ns.print(JSON.stringify(data));
 			if(localState.settings.showDataLogs){
-				const noShow = ['hackAttempt','weakAttempt','growAttempt', 'grow', 'weaken']
+				const noShow = ['hackAttempt','weakAttempt','growAttempt', 'grow', 'weaken', 'action']
 				if(data.event && noShow.includes(data.event)){return}
 				log(Object.keys(data).map(key => `${key}: ${data[key]} `).join('|'), LOGTYPE.info);
 			}

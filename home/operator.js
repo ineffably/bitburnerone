@@ -1,4 +1,4 @@
-import { dataLibrary, getRandomInt, quickTable, roundTo } from './botlib';
+import { dataLibrary, quickTable } from './botlib';
 
 // op deploy
 // op deploy home
@@ -7,11 +7,17 @@ import { dataLibrary, getRandomInt, quickTable, roundTo } from './botlib';
 // op killbots
 // op killall
 // op status
+// op wake hostname
 // op grow {threads/inst} hostname
 
 const state = {
-  command: ''
+  command: null,
+  option: null,
+  dest: null,
+  servers: {}
 }
+const validActions = ['grow', 'weaken', 'hack'];
+
 
 /** @param {import("../index").NS } ns */
 export async function main(ns) {
@@ -34,10 +40,14 @@ export async function main(ns) {
   const isKillBots = state.command === 'killbots';
   const isKillAll = state.command === 'killall';
   const showStatus = state.command === 'status';
+  const wakeAllAction = state.command === 'wake';
   const growAction = state.command === 'grow';
+  const isMonitoring = state.command === 'monitor';
   const session = Date.now();
 
   const threadMax = 10;
+
+  const actionBotFilter = ({ scripts }) => scripts.length > 0 && scripts.find(s => s.filename === actionBots[0]);
 
   const scpFiles = async ({ files = [], source, hostname }) => {
     const results = [];
@@ -59,12 +69,12 @@ export async function main(ns) {
     return results;
   }
 
-  const instanceBalance = (freeRam, scriptRam, maxThreads = 5, balance = [0.33, 0.33]) => {
+  const instanceBalance = (ramFree, scriptRam, maxThreads = 5, balance = [0.33, 0.33]) => {
     const g = parseFloat(balance[0]); // grow percent
     const w = parseFloat(balance[1]); // weaken pecent
     const h = 1 - (g + w);
-    const ramPerInstance = (maxThreads / scriptRam);
-    const maxInstances = Math.floor(freeRam / ramPerInstance);
+    const threadsPerInstance = Math.floor((maxThreads / scriptRam));
+    const maxInstances = Math.floor(ramFree / (threadsPerInstance * scriptRam));
     const grow = Math.floor(maxInstances * g);
     const weaken = Math.floor(maxInstances * w);
     const hack = Math.floor(maxInstances * h);
@@ -76,29 +86,11 @@ export async function main(ns) {
       total,
       maxInstances,
       balance,
-      ramPerInstance,
-      freeRam
+      threadsPerInstance,
+      ramFree
     }
   }
 
-  const awakenGrowbots = async (hostname, instances, threads) => {
-    for (let count = instances; count > 0; count--) {
-      try {
-        // const execResult = true;
-        const id = session + hostname + count;
-        ns.tprint(`ns.exec(${[hostname, threads, 'grow', threads, id]}`)
-        const execResult = await ns.exec(actionBots[0], hostname, threads, 'grow', threads, `${session + hostname + count}`);
-        if (!execResult) {
-          ns.tprint(`failed ${[actionBots[0], hostname, threads]}`)
-          continue;
-        }
-      }
-      catch (err) {
-        ns.tprint(err);
-      }
-
-    }
-  }
 
   const scpFilesToAllServers = async (serverList = [], files = []) => {
     const scpResults = [];
@@ -125,38 +117,95 @@ export async function main(ns) {
     for (let s = 0; s < serverList.length; s++) {
       const { hostname } = serverList[s];
       execResults.push(await execFiles({ hostname, files, threads }));
+      await ns.sleep(100)
     }
     return execResults;
   }
 
+  const killScript = async ({ filename = '', hostname = '', args = [] }) => {
+    const result = await ns.kill(filename, hostname, ...args);
+    ns.tprint({ event: 'kill', hostname, filename, args, result });
+    const details = { event: 'kill', hostname, filename, args, result };
+    logData(details)
+    return details;
+  }
+
   const killScripts = async (activeScripts = []) => {
+    const results = []
     for (let s = 0; s < activeScripts.length; s++) {
       const { hostname, scripts } = activeScripts[s];
       for (let x = 0; x < scripts.length; x++) {
         const { filename, args, } = scripts[x];
         if (filename !== 'operator.js') {
-          const result = await ns.kill(filename, hostname, ...args);
-          logData({event: 'kill', hostname, filename, args, result })
+          results.push(await killScript({ filename, hostname, args }));
         }
+      }
+    }
+    return results;
+  }
+
+  const awakenBots = async (action, hostname, instances, threads) => {
+    for (let count = instances; count > 0; count--) {
+      try {
+        // const execResult = true;
+        const id = [session, hostname, count].join('|');
+        const args = [action, threads, `${id}`];
+        await executeAction({ hostname, threads, args })
+      }
+      catch (err) {
+        ns.tprint(err);
       }
     }
   }
 
-  const getActiveScripts = (serverList) => serverList.map(({ hostname }) => ({ scripts: ns.ps(hostname), hostname }));
+  const executeAction = async ({ hostname, threads, args = [] }) => {
+    const execResult = await ns.exec(actionBots[0], hostname, threads, ...args);
+    if (!execResult) {
+      ns.tprint(`failed ${[actionBots[0], hostname, threads]}`)
+    }
+    await ns.sleep(100);
+  }
 
+  const awakenBotsOnServer = async ({ hostname, maxThreads = 4, balance }) => {
+    const { ramFree } = state.servers[hostname];
+    const instBal = instanceBalance(ramFree, 2.0, maxThreads, balance);
+    ns.tprint(JSON.stringify(instBal, null, 2))
+    const { grow, weaken, hack, threadsPerInstance } = instBal;
+    await awakenBots('grow', hostname, grow, threadsPerInstance);
+    await awakenBots('weaken', hostname, weaken, threadsPerInstance);
+    await awakenBots('hack', hostname, hack, threadsPerInstance);
+  }
+
+  const getBotScriptLogs = (activeScripts = []) => {
+    const summary = activeScripts.reduce((o, {scripts}) => {
+      scripts.forEach(script => {
+        const { args = [], hostname, filename } = script;
+        const arg0 = args[0];
+        if(validActions.includes(arg0)){
+          const log = ns.getScriptLogs(filename, hostname, ...args);
+          o[args[2]] = {log};
+        } 
+        return o;
+      })
+    }, {});
+    return summary;
+    // {"filename":"action-bot.js","threads":4,"args":["grow",4,"1643762915820|hamster0|4"],"pid":362,"hostname":"hamster0"
+  }
+
+  const getActiveScripts = (serverList) => serverList.map(({ hostname }) => (
+    {
+      scripts: ns.ps(hostname).map(val => ({ ...val, hostname })),
+      hostname
+    }
+  ));
   while (true) {
     const { servers, settings } = await getWorldData();
+    state.servers = servers;
     const { balance = [0.33, 0.33] } = settings;
+    state.balance = balance;
     const serverList = Object.values(servers);
-    const [growPercent, weakenPercent] = typeof balance === 'object' ? balance : JSON.parse(balance);
-    const hackPercent = 1 - (growPercent + weakenPercent);
-    let totalFreeRam = 0;
-    const validServers = serverList.filter(({ hasAdminRights, hostname, ramUsed, maxRam }) => {
-      if (hostname !== 'home' && hasAdminRights) {
-        totalFreeRam += (maxRam - ramUsed)
-        return true;
-      }
-    });
+    const validServers = serverList.filter(({ hasAdminRights, hostname }) => (hostname !== 'home' && hasAdminRights));
+
     if (growAction && state.command && state.dest) {
       // grow a specific server
       const maxThreads = state.option;
@@ -166,12 +215,13 @@ export async function main(ns) {
         const instBal = instanceBalance(ramFree, 2.0, maxThreads, balance);
         const { ramPerInstance, maxInstances } = instBal;
         ns.tprint({ hostname, ramPerInstance, maxThreads });
-        await awakenGrowbots(hostname, maxInstances, ramPerInstance);
+        await awakenBots('grow', hostname, maxInstances, ramPerInstance);
       }
     }
+
     if (isDeployCommand) {
-      if(state.option && !state.dest){
-        await scpFiles({files: fileLibrary, source: 'home', hostname: state.option});
+      if (state.option && !state.dest) {
+        await scpFiles({ files: fileLibrary, source: 'home', hostname: state.option });
       }
       const { scpResults, isAllSuccess, isAllFail, isSomeFail } = await scpFilesToAllServers(validServers, fileLibrary);
       if (isAllSuccess) { ns.tprint(`SUCCESS: all files copied to ${scpResults.length} servers`) }
@@ -179,36 +229,79 @@ export async function main(ns) {
       if (isSomeFail) { ns.tprint(`WARN: some files did not copy to ${scpResults.length} servers`) }
     }
     if (showStatus) {
-
-      // const flatScripts = allScripts.flat(1);
-      // const onlyActive = flatScripts.filter(item => item.isRunning);
       // const onlyShow = ['file','hostname','threads', "offlineExpGained","offlineMoneyMade","offlineRunningTime","onlineExpGained","onlineMoneyMade","onlineRunningTime"]
-      // const fields = Object.keys(flatScripts[0]).filter(key => onlyShow.includes(key));
-      // const instances = instanceBalance(totalFreeRam, 2.0, 8, balance);
-      // ns.tprint('\n' + quickTable(onlyActive, fields).join('\n'));
+      const botScripts = getActiveScripts(serverList).filter(actionBotFilter);
+      
+      // {"filename":"action-bot.js","threads":4,"args":
+      // ["grow",4,"1643762915820|hamster0|5"],"pid":361,"hostname":"hamster0"},
+      // {"filename":"action-bot.js","threads":4,"args":["grow",4,"1643762915820|hamster0|4"],"pid":362,"hostname":"hamster0"},{"filename":"action-bot.js","threads":4,"args":[
+
+      // const fields = Object.keys(botScripts[0]); //.filter(key => onlyShow.includes(key));
+      const miniStatus = {
+        active: {}
+      }
+      miniStatus.active = validActions.reduce((o, entry) => {
+        o[entry] = {
+          action: entry,
+          count: 0,
+          success: 0,
+          fail: 0,
+          threads: 0,
+          perSec: 0
+        }
+        return o;
+      }, {});
+
+      //{"filename":"action-bot.js","threads":4,"args":["grow",4,"1643762915820|hamster0|4"],"pid":362,"hostname":"hamster0"
+      botScripts.forEach(({ scripts }) => {
+        scripts.forEach(script => {
+          const { filename, threads, args = [], pid, hostname } = script;
+          if (actionBots.includes(filename)) {
+            const action = args[0];
+            const state = miniStatus.active[action];
+            state.count++;
+            state.threads += threads;
+          }
+        })
+      })
+
+      ns.tprint(JSON.stringify(miniStatus, null, 1));
+      const values = Object.values(miniStatus.active);
+      const fields = Object.keys(values[0]);
+      ns.tprint('\n' + quickTable(values, fields).join('\n'));
+      ns.tprint(getBotScriptLogs(botScripts));
+
       // ns.tprint([
       //   `Free Ram: ${totalFreeRam}`, 
       //   `g,w,h ${[growPercent, weakenPercent, hackPercent]}`,
       //   JSON.stringify(instances, null, 1)
       // ].join('\n'))
     }
+    if (wakeAllAction) {
+      if (state.option) {
+        const maxThreads = 8;
+        const { hostname, ramFree } = servers[state.option];
+        const instBal = instanceBalance(ramFree, 2.0, maxThreads, balance);
+        ns.tprint(JSON.stringify(instBal, null, 2))
+        await awakenBotsOnServer({ hostname, maxThreads, balance });
+      }
+    }
     if (isExecCommand) {
       const execFilesResults = await execFilesOnServers(validServers, actionBots);
       ns.tprint(execFilesResults);
     }
     if (isKillBots) {
-      const botScripts = getActiveScripts(serverList).filter(
-        ({ scripts }) => scripts.length > 0 && scripts.includes(actionBots[0]));
-      await killScripts(botScripts);
-      // if(state.option){
-      //   const killFilesResults = await killFilesOnServers([state.option], actionBots)
-      //   ns.tprint(killFilesResults);
-      // }
-      // const killFilesResults = await killFilesOnServers(validServers, actionBots)
-      // ns.tprint(killFilesResults);
+      const botScripts = getActiveScripts(serverList).filter(actionBotFilter);
+      const killScriptResult = await killScripts(botScripts);
+      if (killScriptResult.length > 0) {
+        ns.tprint('\n' + quickTable(killScriptResult, Object.keys(killScriptResult[0]), 12).join('\n'));
+      }
+      else {
+        ns.tprint('| No active bots.');
+      }
     }
     if (runOnce) {
-      ns.tprint('INFO:RAN ONCE EXITING')
+      ns.tprint('INFO| Ran Once! Exiting.')
       return;
     }
     return await ns.sleep(1000)

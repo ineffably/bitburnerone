@@ -15,7 +15,7 @@ export async function main(ns) {
   const runOnce = 'once' === args[args.length - 1]; // last argument
   const action = args[0];
   const threads = args[1] || 1;
-  const mockAction = true;
+  const mockAction = false;
   if (action === '' || !actions.includes(action)) {
     ns.tprint(`ERROR: "${actions.join(',')}" must be provided to take action`)
     return;
@@ -42,20 +42,17 @@ export async function main(ns) {
       await ns.sleep(10000 + getRandomInt(10000));
     }
     else {
-      results = await ns[action](hostname, { threads });
-      // if (action === 'hack') {
-      //   results = await ns.hack(hostname, { threads })
-      // } else if (action === 'grow') {
-      //   results = await ns.grow(hostname, { threads });
-      // } else if (action === 'weaken') {
-      //   results = await ns.weaken(hostname, { threads });
-      // }
+      // results = await ns[action](hostname, { threads }); // ideal, but, hides the mem cost
+      if (action === 'hack') {
+        results = await ns.hack(hostname, { threads })
+      } else if (action === 'grow') {
+        results = await ns.grow(hostname, { threads });
+      } else if (action === 'weaken') {
+        results = await ns.weaken(hostname, { threads });
+      }
     }
     logData({ event: action, hostname, results, mockAction });
     if (runOnce) { break; }
     await ns.sleep(500);
   }
-}
-
-export function autocomplete(data, args) {
 }
