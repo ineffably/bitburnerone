@@ -199,7 +199,7 @@ export async function main(ns) {
     })
   }
 
-  const doPurchasePass = ((localBudget, currentGrid, buy, gains = 0) => {
+  const purchasePass = ((localBudget, currentGrid, buy, gains = 0) => {
     if(localBudget <= 1000) return localBudget;
     const stockList = sortByField(currentGrid, 'rating').reverse();
     const chooseToBuy = stockList.slice(0, stockList.length / 2).filter(stock => stock.rating >= 5);
@@ -259,7 +259,7 @@ export async function main(ns) {
     }
 
     if (command === 'buy') {
-      doPurchasePass(getBudget(), stockGrid, buy);
+      purchasePass(getBudget(), stockGrid, buy);
       return;
     }
 
@@ -278,14 +278,14 @@ export async function main(ns) {
     const { stockGrid: latestGrid, sell, buy } = await latestStockData();
     if (sessionState.first) {
       if(command !== 'hold'){
-        doPurchasePass(getBudget(), latestGrid, buy);
+        purchasePass(getBudget(), latestGrid, buy);
       }
       sessionState.first = false;
     }
     else {
       const positions = getPositions(latestGrid);
       updatePositions(positions, sell);
-      doPurchasePass(getBudget(), latestGrid, buy, positions.totalGains);
+      purchasePass(getBudget(), latestGrid, buy, positions.totalGains);
     }
 
     await ns.write(holdingsfile, JSON.stringify(holdings), 'w');

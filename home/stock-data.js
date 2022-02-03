@@ -6,24 +6,16 @@ const state = {
   maxHistory: 50
 };
 
-const tranactionfee = 100000;
+const getStockHistory = (history = []) => {
+  const results = {}
 
-const positionFields = [
-  'shares',
-  'avgPx',
-  'sharesShort',
-  'avgPxShort'
-]
+  history.forEach(grid => {
+    const entry = results[grid.symbol] || {};
 
-const transformPosition = (position = []) => {
-  return position.reduce((origin, entry, index) => {
-    const field = positionFields[index];
-    origin[field] = entry;
-    return origin;
-  }, {})
+  })
+
+  return results;
 }
-
- 
 
 /** @param {import("../index").NS } ns */
 export async function main(ns) {
@@ -44,25 +36,22 @@ export async function main(ns) {
     } = stock;
 
     const symbols = getSymbols();
-    // const forcastAverages = state.history.reduce((origin, grid) => {
-    //   grid.map(entry => {
-    //     const value = origin[entry.symbol] || { avgForcast: 0, forcastSize: state.history.length };
-    //     value.avgForcast += entry.forcast;
-    //     origin[entry.symbol] = value;
-    //     return entry;
-    //   }).forEach(entry => {
-    //     ns.tprint([entry.avgForcast , state.history.length - 1])
-    //     entry.avgForcast = entry.avgForcast / state.history.length - 1;
-    //   })
-    //   return origin;
-    // }, {});
+
+    const getFieldHistory = ({ field, sym }) => {
+      return state.history.map(
+        grid => grid.filter(
+          entry => entry.symbol === sym).map(
+            s => s[field]));
+    }
+
+
     const stockGrid = symbols.map((sym) => {
       const results = {
         symbol: sym,
         forcast: getForecast(sym),
         maxShares: getMaxShares(sym),
         askPrice: getAskPrice(sym),
-        bigPrice: getBidPrice(sym),
+        bidPrice: getBidPrice(sym),
         price: getPrice(sym),
         position: getPosition(sym),
         volatility: getVolatility(sym),
@@ -70,12 +59,10 @@ export async function main(ns) {
       };
 
       const [sharesOwned, avgPx] = results.position;
-      if(sharesOwned && avgPx){
+      if (sharesOwned && avgPx) {
         results.saleGain = stock.getSaleGain(sym, sharesOwned, 'Long');
-      } 
+      }
 
-      // const { avgForcast } = forcastAverages[sym] || { avgForcast: results.forcast };
-      // results.avgForcast = avgForcast;
       const { price } = results;
       const hl = state.highlow[sym] || [price, price];
       hl[0] = Math.min(price, hl[0]);
@@ -84,10 +71,8 @@ export async function main(ns) {
 
       results.low = hl[0];
       results.high = hl[1];
-      // results.positionValues = transformPosition(results.position);
 
-      // const gain = (price * pos.shares) - (pos.avgPx * pos.shares) - transactionFee;
-
+      results.hist = getFieldHistory({ sym, field: 'forcast' });
       return results;
     })
 

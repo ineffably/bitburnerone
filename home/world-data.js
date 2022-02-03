@@ -46,7 +46,6 @@ const getNetworkServers = (ns, { money, hacking }) => {
 
     // addons
     server.percentLeft = Math.max(server.moneyAvailable / server.moneyMax, 0.000001);
-    server.action = getHackAction(server, { money, hacking });
     server.files = server.hasAdminRights && ns.ls(hostname);
 		server.ramFree = server.maxRam - server.ramUsed;
     servers[hostname] = server;
@@ -63,7 +62,6 @@ const getNetworkServers = (ns, { money, hacking }) => {
   };
 };
 
-
 const growTargets = (serverList = [], takeTop = 5) => {
   const growFilter = ((server) => true);
   const list = sortByField(sortByField(serverList.filter(growFilter), 'serverGrowth').reverse(), 'percentLeft');
@@ -71,7 +69,7 @@ const growTargets = (serverList = [], takeTop = 5) => {
 }
 
 const weakenTargets = (serverList = [], takeTop = 5) => {
-  const list = sortByField(serverList, 'hackDifficulty').reverse();
+  const list = sortByField(serverList.filter(s => s.moneyAvailable > 100000 && s.hackDifficulty > 40), 'weakenTime');
   return (takeTop ? list.slice(0, takeTop) : list);  
 }
 
@@ -134,78 +132,4 @@ export async function main(ns) {
     }
     await ns.sleep(1000 * sleepSeconds);
   }
-}
-
-// function getHackTargets({ servers, money, hacking}){
-//   const growTable = [];
-//   const weakenTable = [];
-//   const hackTable = [];
-
-//   const serverList = Object.values(servers);
-  
-
-
-// }
-
-function getHackAction(server = {}, { money, hacking }) {
-  const {
-    hackChance,
-    requiredHackingSkill,
-    hackDifficulty,
-    minDifficulty,
-    moneyAvailable,
-    serverGrowth,
-    percentLeft,
-    moneyMax,
-  } = server;
-
-  const scores = {
-    hack: 0,
-    grow: 0,
-    weaken: 0,
-  };
-
-  // weaken
-  scores.weaken += 100 - 100 * hackChance;
-  if (hacking < requiredHackingSkill) {
-    scores.weaken += 100;
-  }
-  if (hackDifficulty > 25) {
-    scores.weaken += hackDifficulty;
-  } else {
-    scores.weaken += hackDifficulty - minDifficulty;
-  }
-
-  // grow
-  if (moneyAvailable === 0) {
-    scores.grow += 100 + serverGrowth;
-  }
-  if (percentLeft < 0.1 && moneyAvailable < money / 2) {
-    scores.grow += serverGrowth;
-  }
-  if (moneyMax - moneyAvailable === 0) {
-    scores.grow = 0;
-  }
-
-  // hack
-  scores.hack += 100 - hackDifficulty;
-  if (hackDifficulty < 25) {
-    scores.hack += percentLeft * 100;
-  }
-  if (moneyAvailable > money / 2) {
-    scores.hack += 25;
-  }
-  if (hackChance < 0.4) {
-    scores.hack = 0;
-  }
-
-  let action = 'hack';
-  if (scores.weaken >= 100) {
-    action = 'weaken';
-  }
-  if (scores.grow >= 100) {
-    action = 'grow';
-  }
-
-  return action;
 }

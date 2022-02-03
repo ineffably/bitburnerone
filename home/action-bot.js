@@ -1,4 +1,4 @@
-import { dataLibrary, getRandomInt } from './botlib';
+import { dataLibrary, getRandomInt, LOGTYPE } from './botlib';
 
 // usage:
 // action-bot.js grow 1 once
@@ -10,18 +10,24 @@ const actions = ['grow', 'hack', 'weaken'];
 
 /** @param {import("../index").NS } ns */
 export async function main(ns) {
-  const { getWorldData, logData } = dataLibrary(ns);
+  ns.disableLog('ALL')
+  const { getWorldData, logData, getSettings, log } = dataLibrary(ns);
   const { args } = ns;
   const runOnce = 'once' === args[args.length - 1]; // last argument
   const action = args[0];
   const threads = args[1] || 1;
-  const mockAction = false;
+  const isMock = false;
   if (action === '' || !actions.includes(action)) {
     ns.tprint(`ERROR: "${actions.join(',')}" must be provided to take action`)
     return;
   }
 
+  const showLog = (event) => {
+    log(Object.keys(event).map(key => `${key}: ${event[key]} `).join('|'), LOGTYPE.info);
+  }
+
   while (true) {
+    const settings = await getSettings();
     const { targets, player } = await getWorldData();
     const { hacking } = player;
     const {
@@ -37,8 +43,10 @@ export async function main(ns) {
     } = targets[action][0];
 
     let results = 0;
-    logData({ event: 'action', action, hostname, hackChance, hackTime, growTime, weakenTime, moneyMax, moneyAvailable, hackDifficulty, hacking, serverGrowth });
-    if (mockAction) {
+    const event = { event: 'action', action, hostname, hackChance, hackTime, growTime, weakenTime, moneyMax, moneyAvailable, hackDifficulty, hacking, serverGrowth };
+    if(settings.showAction){ showLog(event) }
+    logData(event);
+    if (isMock) {
       await ns.sleep(10000 + getRandomInt(10000));
     }
     else {
@@ -51,7 +59,9 @@ export async function main(ns) {
         results = await ns.weaken(hostname, { threads });
       }
     }
-    logData({ event: action, hostname, results, mockAction });
+    const resultEvent = { event: action, hostname, results, isMock, threads }
+    if(settings.showAction){ showLog(resultEvent) }
+    logData(resultEvent);
     if (runOnce) { break; }
     await ns.sleep(500);
   }

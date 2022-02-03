@@ -36,10 +36,11 @@ const config = {
 	}
 }
 
-export const quickTable = (objRecords = [], showFields = [], colwidth = 11, custom) => {
+export const quickTable = (objRecords = [], showFields, colwidth = 11, custom) => {
 	if(objRecords.length <= 0) return ['No Records Found'];
+	const fieldValues = showFields ? showFields : Object.keys(objRecords[0]);
   const render = custom || ((val) => val);
-  const fields = Object.keys(objRecords[0]).filter(f => showFields.includes(f));
+  const fields = Object.keys(objRecords[0]).filter(f => fieldValues.includes(f));
   const sep = fields.reduce((o, e) => { o[e] = '-------------'; return o; }, {});
   const header = fields.reduce((o, e) => { o[e] = e; return o; }, {});
   const records = [header, sep]
@@ -93,8 +94,8 @@ export const instancesWithMaxThreads = (scriptRam = 1, max, used, buffer, maxThr
 
 export const localState = {
 	settings: {
-		loglevl: 1,
-		showDataLogs: true
+		datalogs: false,
+		showfields: ['hack', 'grow', 'weaken']
 	}
 }
 
@@ -161,11 +162,6 @@ export const dataLibrary = ns => {
 		if (typeof data === 'object') {
 			data.datetime = Date.now();
 			ns.print(JSON.stringify(data));
-			if(localState.settings.showDataLogs){
-				const noShow = ['hackAttempt','weakAttempt','growAttempt', 'grow', 'weaken', 'action']
-				if(data.event && noShow.includes(data.event)){return}
-				log(Object.keys(data).map(key => `${key}: ${data[key]} `).join('|'), LOGTYPE.info);
-			}
 		}
 	}
 
@@ -185,11 +181,11 @@ export const dataLibrary = ns => {
 			wtf: 3
 		}
 		const decoration = {
-			process: ['--== ', ' ==--'],
-			info: ['-[o] ', ' [o]-'],
-			notable: ['[!== ', ' ==!]'],
-			error: ['-!!! ', ' !!!-'],
-			excite: ['~\\o/ ', ' \\o/~'],
+			process: ['-= ', ' =-'],
+			info: ['[i] ', ' [i]'],
+			notable: ['[!] ', ' [!]'],
+			error: ['[E] ', ' [E]'],
+			excite: ['\\o/ ', ' \\o/'],
 			wtf: ['WTF! ', ' !FTW'],
 		}
 		const prefix = LOGLEVEL[prefixMap[logtype]];

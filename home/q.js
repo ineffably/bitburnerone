@@ -15,7 +15,7 @@ import { dataLibrary, quickTable, sortByField, instancesWithMaxThreads } from '.
 // q targets hostname
 // q targets hostname field
 
-const dbnames = ['servers', 'player', 'settings', 'targets'];
+const dbnames = ['servers', 'player', 'settings', 'targets', 'stocks'];
 const usage = [
   'q servers [field][op][criteria] fieldnames,',
   'q servers "showfields"',
@@ -70,7 +70,7 @@ export async function main(ns) {
   }
 
   if(db === 'targets') {
-    const onlyShow = ['hostname', 'serverGrowth', 'moneyAvailable', 'moneyMax', 'hackDifficulty', 'hackChance', 'percentLeft'];
+    const onlyShow = ['hostname', 'serverGrowth', 'moneyAvailable', 'moneyMax', 'hackDifficulty', 'hackChance', 'percentLeft','weakenTime'];
     const growfields = Object.keys(targets.grow[0]).filter(field => onlyShow.includes(field));
     const weakenFields = Object.keys(targets.weaken[0]).filter(field => onlyShow.includes(field));
     const hackFields = Object.keys(targets.hack[0]).filter(field => onlyShow.includes(field));
@@ -84,6 +84,11 @@ export async function main(ns) {
   if (db === 'servers') {
     return ns.tprint('\n' + quickTable(Object.values(servers), 'hostname').join('\n'));
   }
+
+  if (db === 'stocks') {
+    return ns.tprint('\n' + quickTable(Object.values(servers), 'hostname').join('\n'));
+  }
+
 
   if (filter1) {
     const data = allData[db];
