@@ -32,7 +32,7 @@ export async function main(ns) {
   while (true) {
     const settings = await getSettingsData();
     const { targets, player } = await getWorldData();
-    const targetServer = targets[action].slice(0,5)[getRandomInt(4)];
+    const targetServer = targets[action].slice(0,5)[getRandomInt(Math.min(4, targets[action].length - 1))];
     if(!targetServer){
       ns.tprint(`ERROR: no target servers ${args}`)
       await ns.sleep(longsleep);

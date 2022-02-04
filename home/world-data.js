@@ -69,13 +69,13 @@ const growTargets = (serverList = [], takeTop = 5) => {
 }
 
 const weakenTargets = (serverList = [], takeTop = 5) => {
-  const list = sortByField(serverList.filter(s => s.moneyAvailable > 100000), 'weakenTime');
+  const list = sortByField(serverList, 'weakenTime');
   return (takeTop ? list.slice(0, takeTop) : list);  
 }
 
 const hackTargets = (serverList = [], hacking, takeTop = 5) => {
   const hackServers = serverList.filter(({ requiredHackingSkill, moneyAvailable }) => 
-    (requiredHackingSkill < hacking && moneyAvailable > 10000 ));
+    (requiredHackingSkill < hacking && moneyAvailable > 0 ));
   const list = sortByField(hackServers, 'hackTime');
   return (takeTop ? list.slice(0, takeTop) : list);
 }

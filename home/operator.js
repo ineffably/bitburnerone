@@ -95,6 +95,11 @@ export async function main(ns) {
     }
   }
 
+  const canHaveBots = ({ramFree,  maxThreads, ram, balance}) => {
+    const instBal = instanceBalance(ramFree, ram, maxThreads, balance);
+    return instBal.maxInstances >= 1
+  }
+
   const scpFilesToAllServers = async (serverList = [], files = []) => {
     const scpResults = [];
     const queue = serverList.map(({ hostname }) => ({
@@ -127,7 +132,6 @@ export async function main(ns) {
 
   const killScript = async ({ filename = '', hostname = '', args = [] }) => {
     const result = await ns.kill(filename, hostname, ...args);
-    // ns.tprint({ event: 'kill', hostname, filename, args, result });
     const details = { event: 'kill', hostname, filename, args, result };
     logData(details)
     return details;
@@ -177,7 +181,14 @@ export async function main(ns) {
     const { ramFree } = state.servers[hostname];
     const ram = memUsage[actionBots[0]];
     const instBal = instanceBalance(ramFree, ram, maxThreads, balance);
-    const { grow, weaken, hack, threadsPerInstance } = instBal;
+    const { grow, weaken, hack, threadsPerInstance, maxInstances } = instBal;
+    if(maxInstances < 2) {
+      return await awakenBots('weaken', hostname, weaken, threadsPerInstance);
+    }
+    if(maxInstances < 3) {
+      await awakenBots('grow', hostname, grow, threadsPerInstance);
+      await awakenBots('weaken', hostname, weaken, threadsPerInstance);
+    }
     await awakenBots('grow', hostname, grow, threadsPerInstance);
     await awakenBots('weaken', hostname, weaken, threadsPerInstance);
     await awakenBots('hack', hostname, hack, threadsPerInstance);
@@ -236,6 +247,13 @@ export async function main(ns) {
     ns.tprint(template);
   }
 
+  const deployAllFiles = async (serverList = []) => {
+    const { scpResults, isAllSuccess, isAllFail, isSomeFail } = await scpFilesToAllServers(serverList, fileLibrary);
+    if (isAllSuccess) { ns.tprint(`SUCCESS: all files copied to ${scpResults.length} servers`) }
+    if (isAllFail) { ns.tprint(`ERROR: NO files copied to ${scpResults.length} servers`) }
+    if (isSomeFail) { ns.tprint(`WARN: some files did not copy to ${scpResults.length} servers`) }
+  }
+
   while (true) {
     const { servers, settings } = await getWorldData();
     state.servers = servers;
@@ -245,21 +263,23 @@ export async function main(ns) {
     const validServers = serverList.filter(({ hasAdminRights, hostname }) => (hostname !== 'home' && hasAdminRights));
 
     if (isDeployCommand) {
+      ns.tprint(`Deploy Command. Initiating file deployment to ${validServers.length} servers`);
       if (state.option && !state.dest) {
         await scpFiles({ files: fileLibrary, source: 'home', hostname: state.option });
       }
-      ns.tprint(`Deploy Command. Initiating file deployment to ${validServers.length} servers`);
-      const { scpResults, isAllSuccess, isAllFail, isSomeFail } = await scpFilesToAllServers(validServers, fileLibrary);
-      if (isAllSuccess) { ns.tprint(`SUCCESS: all files copied to ${scpResults.length} servers`) }
-      if (isAllFail) { ns.tprint(`ERROR: NO files copied to ${scpResults.length} servers`) }
-      if (isSomeFail) { ns.tprint(`WARN: some files did not copy to ${scpResults.length} servers`) }
+      else{
+        await deployAllFiles(validServers);
+      }
+      return;
     }
 
     if (showStatusCmd) {
       showStatus(serverList);
+      return;
     }
+
     if (wakeAllAction) {
-      const maxThreads = state.dest || 16;
+      const maxThreads = state.dest || 8;
       if (state.option) {
         const { hostname } = servers[state.option];
         await awakenBotsOnServer({ hostname, maxThreads, balance });
@@ -267,10 +287,13 @@ export async function main(ns) {
       else {
         await awakenBotsOnAllServers(validServers, maxThreads, balance);
       }
+      return;
     }
+    
     if (isExecCommand) {
       const execFilesResults = await execFilesOnServers(validServers, actionBots);
       ns.tprint(execFilesResults);
+      return;
     }
     if (isKillBots) {
       const hostname = state.option;
@@ -283,22 +306,33 @@ export async function main(ns) {
       else {
         ns.tprint('| No active bots.');
       }
+      return;
     }
     if (isMonitoring) {
+      const maxThreads = state.option;
       const numServers = validServers.length;
-      const numServersWithBots = Object.keys(getActiveBotScripts(validServers).reduce((origin, entry) => {
+      const serversWithBots = Object.keys(getActiveBotScripts(validServers).reduce((origin, entry) => {
         origin[entry.hostname] = 1
         return origin;
-      }, {})).length;
-
-      ns.tprint({ numServers, scripts: numServersWithBots });
-
+      }, {}));
+      if(serversWithBots.length < numServers) {
+        // ns.tprint(`${serversWithBots.length} / ${numServers}`)
+        const ram = memUsage[actionBots[0]];
+        const supportBots = validServers.filter(
+          ({hostname, ramFree}) => (serversWithBots[hostname] !== 1 && 
+            canHaveBots({ ramFree, maxThreads, ram, balance })));
+        if(supportBots.length > serversWithBots.length){
+          await deployAllFiles(supportBots);
+          await awakenBotsOnAllServers(supportBots, maxThreads, balance);
+        }
+      }
+      return;
     }
     if (runOnce) {
       ns.tprint('INFO| Ran Once! Exiting.')
       return;
     }
-    return await ns.sleep(1000)
+    await ns.sleep(1000)
   }
 
   function getStatsFromLogs(logs = []) {
