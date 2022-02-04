@@ -69,14 +69,14 @@ const growTargets = (serverList = [], takeTop = 5) => {
 }
 
 const weakenTargets = (serverList = [], takeTop = 5) => {
-  const list = sortByField(serverList.filter(s => s.moneyAvailable > 100000 && s.hackDifficulty > 40), 'weakenTime');
+  const list = sortByField(serverList.filter(s => s.moneyAvailable > 100000), 'weakenTime');
   return (takeTop ? list.slice(0, takeTop) : list);  
 }
 
 const hackTargets = (serverList = [], hacking, takeTop = 5) => {
-  const hackServers = serverList.filter(({ requiredHackingSkill, hackDifficulty }) => 
-    (requiredHackingSkill < hacking && hackDifficulty < 60));
-  const list = sortByField(hackServers, 'percentLeft').reverse();
+  const hackServers = serverList.filter(({ requiredHackingSkill, moneyAvailable }) => 
+    (requiredHackingSkill < hacking && moneyAvailable > 10000 ));
+  const list = sortByField(hackServers, 'hackTime');
   return (takeTop ? list.slice(0, takeTop) : list);
 }
 
@@ -103,7 +103,7 @@ export async function main(ns) {
     const player = getPlayerData(ns);
     const { servers, network } = getNetworkServers(ns, player);
     const serverList = Object.values(servers);
-    const hackableServers = serverList.filter(server => !server.purchasedByPlayer && server.moneyMax > 0) 
+    const hackableServers = serverList.filter(server => !server.purchasedByPlayer && server.moneyMax > 0 && server.hasAdminRights) 
     const growList = growTargets(hackableServers, numTargets);
     const weakenList = weakenTargets(hackableServers, numTargets);
     const hackList = hackTargets(hackableServers, player.hacking, numTargets);

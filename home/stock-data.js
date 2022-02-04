@@ -6,17 +6,6 @@ const state = {
   maxHistory: 50
 };
 
-const getStockHistory = (history = []) => {
-  const results = {}
-
-  history.forEach(grid => {
-    const entry = results[grid.symbol] || {};
-
-  })
-
-  return results;
-}
-
 /** @param {import("../index").NS } ns */
 export async function main(ns) {
   ns.clearLog();
@@ -39,9 +28,9 @@ export async function main(ns) {
 
     const getFieldHistory = ({ field, sym }) => {
       return state.history.map(
-        grid => grid.filter(
+        grid => (grid.filter(
           entry => entry.symbol === sym).map(
-            s => s[field]));
+            s => s[field]))[0]);
     }
 
 
@@ -72,12 +61,12 @@ export async function main(ns) {
       results.low = hl[0];
       results.high = hl[1];
 
-      results.hist = getFieldHistory({ sym, field: 'forcast' });
+      results.forcasthist = getFieldHistory({ sym, field: 'forcast' });
       return results;
     })
 
     ns.clearLog();
-    ns.print(JSON.stringify({ stockGrid, history }));
+    ns.print(JSON.stringify({ stockGrid }));
 
     state.last = stockGrid;
     state.history.push(stockGrid);

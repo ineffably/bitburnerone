@@ -53,8 +53,8 @@ export const quickTable = (objRecords = [], showFields, colwidth = 11, custom) =
   );
 }
 
-export const padRight = (value, len, padWith) => {
-  let result = value;
+export const padRight = (value, len, padWith = ' ') => {
+  let result = value+'';
   while (result.length < len) {
     result += padWith;
   }

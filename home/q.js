@@ -1,4 +1,4 @@
-import { dataLibrary, quickTable, sortByField, instancesWithMaxThreads } from './botlib';
+import { dataLibrary, quickTable } from './botlib';
 
 // q servers [field][op][criteria] fieldnames,,
 // q servers fields              // all field names
@@ -62,22 +62,27 @@ export async function main(ns) {
   }
 
   const allData = await getWorldData();
-  const { player, servers, targets, settings } = allData;
-  const { balance } = settings;
-  const { hacking, money } = player;
+  const { player, servers, targets } = allData;
   if (isQuery) {
     return queryDb(ns, Object.values(allData[db]), filter1, filter2);
   }
 
   if(db === 'targets') {
-    const onlyShow = ['hostname', 'serverGrowth', 'moneyAvailable', 'moneyMax', 'hackDifficulty', 'hackChance', 'percentLeft','weakenTime'];
-    const growfields = Object.keys(targets.grow[0]).filter(field => onlyShow.includes(field));
-    const weakenFields = Object.keys(targets.weaken[0]).filter(field => onlyShow.includes(field));
-    const hackFields = Object.keys(targets.hack[0]).filter(field => onlyShow.includes(field));
-    ns.tprint('\nGrow:\n' + quickTable(targets.grow, growfields).join('\n'));
-    ns.tprint('\nWeaken:\n' + quickTable(targets.weaken, weakenFields).join('\n'));
-    ns.tprint('\nHack:\n' + quickTable(targets.hack, hackFields).join('\n'));
-    ns.tprint(balance)
+    const onlyShow = ['hostname', 'serverGrowth', 'moneyAvailable', 'moneyMax', 'hackDifficulty', 'hackChance', 'percentLeft', 'weakenTime', 'hackTime'];
+    const { grow, weaken, hack } = targets;
+    if(grow.length > 0){
+      const growfields = Object.keys(grow[0]).filter(field => onlyShow.includes(field));
+      ns.tprint('\nGrow:\n' + quickTable(grow, growfields).join('\n'));
+    }
+    if(weaken.length > 0){
+      const weakenFields = Object.keys(weaken[0]).filter(field => onlyShow.includes(field));
+      ns.tprint('\nWeaken:\n' + quickTable(weaken, weakenFields).join('\n'));
+    }
+    if(hack.length > 0){
+      const hackFields = Object.keys(hack[0]).filter(field => onlyShow.includes(field));
+    ns.tprint('\nHack:\n' + quickTable(hack, hackFields).join('\n'));
+
+    }
     return;
   }
 
