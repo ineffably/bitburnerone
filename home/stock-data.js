@@ -76,6 +76,6 @@ export async function main(ns) {
     if (state.count++ % 120 === 0) {
       await ns.write('_world-data.json', JSON.stringify(state.last), 'w');
     }
-    await ns.sleep(1000);
+    await ns.sleep(3000);
   }
 }

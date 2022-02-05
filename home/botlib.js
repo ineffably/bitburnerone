@@ -36,6 +36,14 @@ const config = {
 	}
 }
 
+export const isFloat = num => {
+  try {
+    return parseFloat(num) == num;
+  } catch (e) {
+    return false;
+  }
+}
+
 export const quickTable = (objRecords = [], showFields, colwidth = 11, custom) => {
 	if(objRecords.length <= 0) return ['No Records Found'];
 	const fieldValues = showFields ? showFields : Object.keys(objRecords[0]);
