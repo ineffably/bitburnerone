@@ -1,4 +1,4 @@
-import { dataLibrary, quickTable } from './botlib';
+import { dataLibrary, quickTable, padRight } from './botlib';
 
 // q servers [field][op][criteria] fieldnames,,
 // q servers fields              // all field names
@@ -15,7 +15,8 @@ import { dataLibrary, quickTable } from './botlib';
 // q targets hostname
 // q targets hostname field
 
-const dbnames = ['servers', 'player', 'settings', 'targets', 'stocks'];
+const pr = padRight;
+const dbnames = ['servers', 'player', 'settings', 'targets', 'stocks', 'network'];
 const usage = [
   'q servers [field][op][criteria] fieldnames,',
   'q servers "showfields"',
@@ -62,36 +63,67 @@ export async function main(ns) {
   }
 
   const allData = await getWorldData();
-  const { player, servers, targets } = allData;
+  const { player, servers, targets, network } = allData;
   if (isQuery) {
     return queryDb(ns, Object.values(allData[db]), filter1, filter2);
   }
 
-  if(db === 'targets') {
+  if (db === 'targets') {
     const onlyShow = ['hostname', 'serverGrowth', 'moneyAvailable', 'moneyMax', 'hackDifficulty', 'hackChance', 'percentLeft', 'weakenTime', 'hackTime'];
     const { grow, weaken, hack } = targets;
-    if(grow.length > 0){
+    if (grow.length > 0) {
       const growfields = Object.keys(grow[0]).filter(field => onlyShow.includes(field));
       ns.tprint('\nGrow:\n' + quickTable(grow, growfields).join('\n'));
     }
-    if(weaken.length > 0){
+    if (weaken.length > 0) {
       const weakenFields = Object.keys(weaken[0]).filter(field => onlyShow.includes(field));
       ns.tprint('\nWeaken:\n' + quickTable(weaken, weakenFields).join('\n'));
     }
-    if(hack.length > 0){
+    if (hack.length > 0) {
       const hackFields = Object.keys(hack[0]).filter(field => onlyShow.includes(field));
-    ns.tprint('\nHack:\n' + quickTable(hack, hackFields).join('\n'));
+      ns.tprint('\nHack:\n' + quickTable(hack, hackFields).join('\n'));
 
     }
     return;
   }
 
+  const showServerTable = (serverResults, hideFields = ['files']) => {
+    const rowTemplate = ([field, value], [maxField, maxValue]) =>
+      (`| ${pr(field, maxField)} | ${pr(value, maxValue)} |`);
+      const table = serverResults.map(server => {
+        const fields = Object.keys(server).filter(field => !hideFields.includes(field));
+        const maxField = fields.reduce((o, e) => Math.max(e.length, o), 0);
+        const maxValue = fields.reduce((o, e) => Math.max((server[e] + '').length, o), 0);
+        return `[ ${server.hostname} ]\n` + fields.map(key => {
+          return rowTemplate([key, server[key]], [maxField, maxValue])
+        }).join('\n')
+      });
+      ns.tprint([`\n`, table.join('')].join(''))
+  }
+
   if (db === 'servers') {
+    if (filter1) {
+      const serverResults = Object.values(servers).filter(server => server.hostname === filter1);
+      showServerTable(serverResults);
+      return;
+    }
     return ns.tprint('\n' + quickTable(Object.values(servers), 'hostname').join('\n'));
   }
 
   if (db === 'stocks') {
     return ns.tprint('\n' + quickTable(Object.values(servers), 'hostname').join('\n'));
+  }
+
+  if (db === 'network') {
+    const getNet = (hostname, lan, depth = 0, parent) => {
+      let net = `${pr('', depth, '.')}${hostname}\n`
+      net += Object.keys(lan).filter(
+        f => f !== parent).map(
+          key => getNet(
+            key, lan[key], depth + 1, hostname)).join('')
+      return net;
+    }
+    return ns.tprint('\n' + getNet('home', network));
   }
 
 

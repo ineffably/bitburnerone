@@ -1,4 +1,4 @@
-import { dataLibrary, padRight, padRight as pr, quickTable } from './botlib';
+import { dataLibrary, padRight } from './botlib';
 
 // op deploy
 // op deploy home
@@ -96,6 +96,7 @@ export async function main(ns) {
   }
 
   const canHaveBots = ({ramFree,  maxThreads, ram, balance}) => {
+    if(ramFree <= 0) return false;
     const instBal = instanceBalance(ramFree, ram, maxThreads, balance);
     return instBal.maxInstances >= 1
   }
@@ -249,15 +250,15 @@ export async function main(ns) {
 
   const deployAllFiles = async (serverList = []) => {
     const { scpResults, isAllSuccess, isAllFail, isSomeFail } = await scpFilesToAllServers(serverList, fileLibrary);
-    if (isAllSuccess) { ns.tprint(`SUCCESS: all files copied to ${scpResults.length} servers`) }
+    // if (isAllSuccess) { ns.tprint(`SUCCESS: all files copied to ${scpResults.length} servers`) }
     if (isAllFail) { ns.tprint(`ERROR: NO files copied to ${scpResults.length} servers`) }
     if (isSomeFail) { ns.tprint(`WARN: some files did not copy to ${scpResults.length} servers`) }
   }
 
   while (true) {
     const { servers, settings } = await getWorldData();
-    state.servers = servers;
     const { balance = [0.33, 0.33] } = settings;
+    state.servers = servers;
     state.balance = balance;
     const serverList = Object.values(servers);
     const validServers = serverList.filter(({ hasAdminRights, hostname }) => (hostname !== 'home' && hasAdminRights));
@@ -289,12 +290,13 @@ export async function main(ns) {
       }
       return;
     }
-    
+
     if (isExecCommand) {
       const execFilesResults = await execFilesOnServers(validServers, actionBots);
       ns.tprint(execFilesResults);
       return;
     }
+
     if (isKillBots) {
       const hostname = state.option;
       const botScripts = getActiveBotScripts(serverList);
@@ -308,31 +310,30 @@ export async function main(ns) {
       }
       return;
     }
+
     if (isMonitoring) {
-      const maxThreads = state.option;
-      const numServers = validServers.length;
-      const serversWithBots = Object.keys(getActiveBotScripts(validServers).reduce((origin, entry) => {
+      const maxThreads = state.option || 8;
+      const activeBotScripts = getActiveBotScripts(validServers).reduce((origin, entry) => {
         origin[entry.hostname] = 1
         return origin;
-      }, {}));
-      if(serversWithBots.length < numServers) {
-        // ns.tprint(`${serversWithBots.length} / ${numServers}`)
-        const ram = memUsage[actionBots[0]];
-        const supportBots = validServers.filter(
-          ({hostname, ramFree}) => (serversWithBots[hostname] !== 1 && 
-            canHaveBots({ ramFree, maxThreads, ram, balance })));
-        if(supportBots.length > serversWithBots.length){
-          await deployAllFiles(supportBots);
-          await awakenBotsOnAllServers(supportBots, maxThreads, balance);
-        }
+      }, {});
+      const serversWithActiveBots = Object.keys(activeBotScripts);
+      const ram = memUsage[actionBots[0]];
+      const supportBots = validServers.filter(
+        ({ramFree}) => (canHaveBots({ ramFree, maxThreads, ram, balance })));
+
+      if(supportBots.length > serversWithActiveBots.length){
+        ns.tprint('Monitoring... found new servers...')
+        await deployAllFiles(supportBots);
+        await awakenBotsOnAllServers(supportBots, maxThreads, balance);
       }
-      return;
     }
+
     if (runOnce) {
       ns.tprint('INFO| Ran Once! Exiting.')
       return;
     }
-    await ns.sleep(1000)
+    await ns.sleep(10000)
   }
 
   function getStatsFromLogs(logs = []) {
@@ -404,9 +405,6 @@ export async function main(ns) {
     })
     stats.servercount = Object.keys(stats.servers).length;
     stats.botstotal = Object.keys(stats.bots).length;
-    stats.next.grow = ns.tFormat(stats.next.grow);
-    stats.next.hack = ns.tFormat(stats.next.hack);
-    stats.next.weaken = ns.tFormat(stats.next.weaken);
     stats.threads = Object.values(stats.bots).reduce((o, e) => {
       return o + e;
     }, 0);
@@ -422,19 +420,22 @@ export async function main(ns) {
     // ns.tprint(JSON.stringify(summary, null, 1));
     const { botstotal, servercount, actions, next } = stats
     const pr = padRight;
+    const defaultStat = { count : 0, completed: 0};
+    const { grow = defaultStat, hack = defaultStat, weaken = defaultStat } = actions;
+
     const template = `
  ____________________________________
 | ACTIVE BOTS: ${pr(botstotal, 5)}ON ${servercount} SERVERS!   |
 | ${pr('', 34)} |
 | ${pr('ACTIONS', 8)} ${pr('INIT | DONE | WIN  | FAIL', 23)} |
-| ${pr('GROW:', 8)} ${pr(actions.grow.count, 5)}| ${pr(actions.grow.completed, 5)}| ${pr(summary.grow.success, 5)}| ${pr(summary.grow.fail, 5)}|
-| ${pr('HACK:', 8)} ${pr(actions.hack.count, 5)}| ${pr(actions.hack.completed, 5)}| ${pr(summary.hack.success, 5)}| ${pr(summary.hack.fail, 5)}|
-| ${pr('WEAKEN:', 8)} ${pr(actions.weaken.count, 5)}| ${pr(actions.weaken.completed, 5)}| ${pr(summary.weaken.success, 5)}| ${pr(summary.weaken.fail, 5)}|
+| ${pr('GROW:', 8)} ${pr(grow.count, 5)}| ${pr(grow.completed, 5)}| ${pr(summary.grow.success, 5)}| ${pr(summary.grow.fail, 5)}|
+| ${pr('HACK:', 8)} ${pr(hack.count, 5)}| ${pr(hack.completed, 5)}| ${pr(summary.hack.success, 5)}| ${pr(summary.hack.fail, 5)}|
+| ${pr('WEAKEN:', 8)} ${pr(weaken.count, 5)}| ${pr(weaken.completed, 5)}| ${pr(summary.weaken.success, 5)}| ${pr(summary.weaken.fail, 5)}|
 | ${pr('', 34)} |
 | ${pr('NEXT INCOMING ACTIONS...', 34)} |
-| ${pr('GROW:', 8)} ${pr(next.grow, 25)} |
-| ${pr('HACK:', 8)} ${pr(next.hack, 25)} |
-| ${pr('WEAKEN:', 8)} ${pr(next.weaken, 25)} |
+| ${pr('GROW:', 8)} ${pr(next.grow !== now && ns.tFormat(next.grow), 25)} |
+| ${pr('HACK:', 8)} ${pr(next.hack !== now && ns.tFormat(next.hack), 25)} |
+| ${pr('WEAKEN:', 8)} ${pr(next.weaken !== now && ns.tFormat(next.weaken), 25)} |
 | ${pr('', 34)} |
 | ${pr('TOTALS:', 18)} ${pr('THREADS:', 15)} |
 | ${pr('GROW:', 8)} ${pr(ns.nFormat(summary.grow.total, '000.000'), 9)} ${pr(stats.threads.grow, 15)} |
